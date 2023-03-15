@@ -172,7 +172,7 @@ class Gateway:
         result = self.client.publish(pub_topic, msg, 0, retain)
         status = result[0]
         if status == 0:
-            logger.info("Sent `%s` to topic `%s`", msg, pub_topic)
+            logger.debug("Sent `%s` to topic `%s`", msg, pub_topic)
         else:
             logger.error("Failed to send message to topic %s", pub_topic)
 
@@ -272,13 +272,21 @@ class Gateway:
         while not self.stopped:
             try:
                 if self.client.is_connected():
+                    self.detected_count = 0
+                    logger.info("Start scan")
                     await scanner.start()
                     await asyncio.sleep(self.scan_time)
+                    logger.info("Stop scan")
                     await scanner.stop()
                     await asyncio.sleep(self.time_between_scans)
 
                     # Update time for all clocks once a day
                     await self.update_clock_times()
+
+                    logger.info("Detected devices: %d", self.detected_count)
+                    if self.detected_count == 0:
+                        logger.warning("Restarting scanner")
+                        scanner = BleakScanner(**scanner_kwargs)
                 else:
                     await asyncio.sleep(5.0)
             except Exception as exception:
@@ -295,6 +303,7 @@ class Gateway:
 
         # Try to add the device to dictionary of clocks to synchronize time.
         self.add_clock(device.address)
+        self.detected_count += 1
 
         data_json = {}
 
